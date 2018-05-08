@@ -30,6 +30,19 @@ namespace ClothMesh {
 	extern void drawClothMesh();
 }
 
+namespace Sphere {
+	extern void setupSphere(glm::vec3 pos = glm::vec3(0.f, 1.f, 0.f), float radius = 1.f);
+	extern void cleanupSphere();
+	extern void updateSphere(glm::vec3 pos, float radius = 1.f);
+	extern void drawSphere();
+	v3 pos;
+	float rad;
+	v3 vel;
+	v3 acc;
+	float mass;
+	float density;
+}
+
 void GUI() {
 	bool show = true;
 	ImGui::Begin("Physics Parameters", &show, 0);
@@ -100,8 +113,16 @@ void initialDarticles() {
 void PhysicsInit() {
 	// Do your initialization code here...
 	// ...................................
-	
+	Sphere::pos = { 0, 7, 0 };
+	Sphere::rad = 1;
+	Sphere::vel = {0, 0, 0};
+	Sphere::acc = { 0, -9.81, 0 };
+	Sphere::mass = 1;
+	Sphere::density = 4 / 3 * PI * glm::pow(Sphere::rad, 3);
+
+
 	ClothMesh::setupClothMesh();
+	Sphere::setupSphere(Sphere::pos, Sphere::rad);
 	initialDarticles();
 }
 
@@ -109,6 +130,7 @@ static float currentTime = 0;
 void PhysicsUpdate(float dt) {
 	currentTime += dt;
 
+	//UPDATE DE LA OLA
 	struct wave {
 		float lambda = 5;
 		float kWave = 2 * PI / lambda;
@@ -146,7 +168,27 @@ void PhysicsUpdate(float dt) {
 
 	arrayStructToArray();
 	ClothMesh::updateClothMesh(arrayParticles);
+
+	//COLISIÓN ESFERA CON OLA
+	std::pair<int, float> shortestD=std::make_pair(-1, INT_MAX);
+	for (int i = 0; i < NPARTICLES; ++i) {
+		float aux=glm::distance(Sphere::pos, arrayStructParticles[i%widthParticles][i / widthParticles].pos);
+		if (aux < shortestD.second) {
+			shortestD.first = i;
+			shortestD.second = aux;
+		}
+	}
+	std::cout << shortestD.first << " " << shortestD.second << std::endl;
+	//CORRECCIÓN ESFERA
+
+	//MOVIMIENTO ESFERA 
+	Sphere::pos += dt*Sphere::vel;
+	Sphere::vel += dt*Sphere::acc;
+
+	//DRAW ESFERA Y CLOTH
 	ClothMesh::drawClothMesh();
+	Sphere::updateSphere(Sphere::pos, Sphere::rad);
+	Sphere::drawSphere();
 }
 
 void PhysicsCleanup() {
