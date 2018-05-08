@@ -4,6 +4,7 @@
 #include <glm\geometric.hpp>
 #include <math.h>
 #include <iostream>
+#include <deque>
 
 bool show_test_window = false;
 const int widthParticles = 14;
@@ -108,22 +109,39 @@ static float currentTime = 0;
 void PhysicsUpdate(float dt) {
 	currentTime += dt;
 
-	float lambda = 1;
-	float kWave = 2 * 3.141592 / lambda;
-	float A = 0.25; //amplitud de la ona
-	v3 K = {1, 1, 0.4}; //direcció de la ona
-	float w = 4; //velocitat de la ona
+	struct wave {
+		float lambda = 5;
+		float kWave = 2 * PI / lambda;
+		float A = 0.25; //amplitud de la ona
+		v3 K = { 1, 0, 0.4 }; //direcció de la ona
+		float w = 4; //velocitat de la ona
+		float phi = 0;
+	};
 
+	std::deque<wave> myWaveDeque;
+	wave one;
+	wave two;
+	two.K = {-0.4, 0, 1};
+	myWaveDeque.push_back(one);
+	myWaveDeque.push_back(two);
 
 	for (int i = 0; i < NPARTICLES; ++i) {
 		arrayStructParticles[i%widthParticles][i / widthParticles].pos = initialData[i%widthParticles][i / widthParticles].pos;
+		v3 xSum(0);
+		float ySum=0;
+		for (int j = 0; j < myWaveDeque.size(); ++j) {
+			xSum+= (myWaveDeque.at(j).K / myWaveDeque.at(j).kWave)*myWaveDeque.at(j).A*
+				sin(glm::dot(myWaveDeque.at(j).K, initialData[i%widthParticles][i / widthParticles].pos) - myWaveDeque.at(j).w * currentTime + myWaveDeque.at(j).phi);
+
+			ySum+= myWaveDeque.at(j).A *
+				cos(glm::dot(myWaveDeque.at(j).K, initialData[i%widthParticles][i / widthParticles].pos) - myWaveDeque.at(j).w * currentTime + myWaveDeque.at(j).phi);
+			
+		}
 		//x
-		arrayStructParticles[i%widthParticles][i / widthParticles].pos = initialData[i%widthParticles][i / widthParticles].pos - 
-			(K / kWave)*A*sin(glm::dot(K, initialData[i%widthParticles][i / widthParticles].pos)-w*currentTime);
+		arrayStructParticles[i%widthParticles][i / widthParticles].pos = initialData[i%widthParticles][i / widthParticles].pos - xSum;
 
 		//y
-		
-		arrayStructParticles[i%widthParticles][i / widthParticles].pos.y += A * cos(glm::dot(K,initialData[i%widthParticles][i / widthParticles].pos) - w * currentTime);
+		arrayStructParticles[i%widthParticles][i / widthParticles].pos.y += ySum;
 	}
 
 	arrayStructToArray();
