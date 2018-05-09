@@ -13,11 +13,14 @@ const int depthParticles = 18;
 #define NPARTICLES 252
 #define PI 3.141592654
 
+
 using v3 = glm::vec3;
 struct particle {
 	v3 pos;
 	v3 vel;
 };
+
+const v3 GRAVITY(0, -9.81, 0);
 
 float arrayParticles[NPARTICLES * 3];
 particle arrayStructParticles[widthParticles][depthParticles];
@@ -116,9 +119,9 @@ void PhysicsInit() {
 	Sphere::pos = { 0, 7, 0 };
 	Sphere::rad = 1;
 	Sphere::vel = {0, 0, 0};
-	Sphere::acc = { 0, -9.81, 0 };
+	Sphere::acc = { 0, 0, 0 };
 	Sphere::mass = 1;
-	Sphere::density = 4 / 3 * PI * glm::pow(Sphere::rad, 3);
+	Sphere::density = Sphere::mass/(4.f / 3.f * PI * glm::pow(Sphere::rad, 3));
 
 
 	ClothMesh::setupClothMesh();
@@ -127,7 +130,31 @@ void PhysicsInit() {
 }
 
 static float currentTime = 0;
+
+void addForce(v3 force) {
+	Sphere::acc += force ;
+}
+
+void buoyancy(std::pair<v3, float> part) {
+	if (part.second < Sphere::rad || Sphere::pos.y - Sphere::rad < part.first.y) {
+		float distLowSphere = glm::distance(Sphere::pos - v3{ 0, Sphere::rad, 0 }, part.first);
+		float volSub;
+		if (distLowSphere > Sphere::rad * 2)
+			volSub = (4.f / 3.f)*PI*glm::pow(Sphere::rad, 3);
+		else
+			volSub = ((PI*glm::pow(distLowSphere, 2)) / 3.f)*(3.f * Sphere::rad - distLowSphere);
+		
+		float fx = (Sphere::density*glm::abs(GRAVITY.x)*volSub) / Sphere::mass;
+		float fy = (Sphere::density*glm::abs(GRAVITY.y)*volSub) / Sphere::mass;
+		float fz = (Sphere::density*glm::abs(GRAVITY.z)*volSub) / Sphere::mass;
+
+		addForce(v3{fx, fy, fz});
+		//std::cout << fy << std::endl;
+	}
+}
+
 void PhysicsUpdate(float dt) {
+	dt /= 1;
 	currentTime += dt;
 
 	//UPDATE DE LA OLA
@@ -170,17 +197,20 @@ void PhysicsUpdate(float dt) {
 	ClothMesh::updateClothMesh(arrayParticles);
 
 	//COLISIÓN ESFERA CON OLA
-	std::pair<int, float> shortestD=std::make_pair(-1, INT_MAX);
+	std::pair<v3, float> shortestD = std::make_pair(v3{-1, -1, -1}, INT_MAX);
 	for (int i = 0; i < NPARTICLES; ++i) {
 		float aux=glm::distance(Sphere::pos, arrayStructParticles[i%widthParticles][i / widthParticles].pos);
 		if (aux < shortestD.second) {
-			shortestD.first = i;
+			shortestD.first = arrayStructParticles[i%widthParticles][i / widthParticles].pos;
 			shortestD.second = aux;
 		}
 	}
-	std::cout << shortestD.first << " " << shortestD.second << std::endl;
-	//CORRECCIÓN ESFERA
 
+	addForce(GRAVITY*Sphere::mass);
+	buoyancy(shortestD);
+
+	std::cout << " " << Sphere::acc.y << std::endl;
+	//CORRECCIÓN ESFERA
 	//MOVIMIENTO ESFERA 
 	Sphere::pos += dt*Sphere::vel;
 	Sphere::vel += dt*Sphere::acc;
@@ -189,6 +219,8 @@ void PhysicsUpdate(float dt) {
 	ClothMesh::drawClothMesh();
 	Sphere::updateSphere(Sphere::pos, Sphere::rad);
 	Sphere::drawSphere();
+
+	Sphere::acc = v3(0);
 }
 
 void PhysicsCleanup() {
