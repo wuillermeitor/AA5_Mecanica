@@ -9,7 +9,7 @@
 bool show_test_window = false;
 const int widthParticles = 14;
 const int depthParticles = 18;
-
+float liquidDensity = 0.997;
 #define NPARTICLES 252
 #define PI 3.141592654
 
@@ -44,11 +44,16 @@ namespace Sphere {
 	v3 acc;
 	float mass;
 	float density;
+	float Cd = 0.47;
 }
+
+void resetSphere();
 
 void GUI() {
 	bool show = true;
 	ImGui::Begin("Physics Parameters", &show, 0);
+
+
 
 	// Do your GUI code here....
 	{	
@@ -56,6 +61,12 @@ void GUI() {
 		
 	}
 	// .........................
+
+
+	ImGui::SliderFloat("Sphere Mass", &Sphere::mass, 0.01, 10);
+	if (ImGui::Button("Reset")) {
+		resetSphere();
+	}
 	
 	ImGui::End();
 
@@ -119,8 +130,8 @@ void PhysicsInit() {
 	Sphere::pos = { 0, 7, 0 };
 	Sphere::rad = 1;
 	Sphere::vel = {0, 0, 0};
-	Sphere::acc = { 0, 0, 0 };
-	Sphere::mass = 1;
+	Sphere::acc = GRAVITY;
+	Sphere::mass = 2;
 	Sphere::density = Sphere::mass/(4.f / 3.f * PI * glm::pow(Sphere::rad, 3));
 
 
@@ -129,10 +140,33 @@ void PhysicsInit() {
 	initialDarticles();
 }
 
+float getRandomFloatInRange(int min, int max) {
+	return min + rand() % (max - min);
+}
+
 static float currentTime = 0;
 
+void resetSphere() {
+	Sphere::pos = {getRandomFloatInRange(-3, 3), getRandomFloatInRange(6, 8), getRandomFloatInRange(-3, 3)};
+	Sphere::vel = { 0, 0, 0 };
+	Sphere::acc = GRAVITY;
+	currentTime = 0;
+}
+
+
 void addForce(v3 force) {
-	Sphere::acc += force ;
+	Sphere::acc += force/Sphere::mass;
+}
+
+void dragForce(std::pair<v3, float> part) {
+	float aux = glm::clamp(part.second, 0.f, Sphere::rad);
+	float areaC= PI*glm::pow(Sphere::rad* (1-(aux / Sphere::rad)), 2);
+	if (part.first.y > Sphere::pos.y) {
+		areaC = PI*glm::pow(Sphere::rad, 2);
+	}
+
+	float Fdrag = -0.5f*Sphere::density*Sphere::Cd*glm::abs(areaC) * glm::abs(Sphere::vel.y)*Sphere::vel.y;
+	addForce(v3{0, Fdrag, 0});
 }
 
 void buoyancy(std::pair<v3, float> part) {
@@ -144,18 +178,16 @@ void buoyancy(std::pair<v3, float> part) {
 		else
 			volSub = ((PI*glm::pow(distLowSphere, 2)) / 3.f)*(3.f * Sphere::rad - distLowSphere);
 		
-		float fx = (Sphere::density*glm::abs(GRAVITY.x)*volSub) / Sphere::mass;
-		float fy = (Sphere::density*glm::abs(GRAVITY.y)*volSub) / Sphere::mass;
-		float fz = (Sphere::density*glm::abs(GRAVITY.z)*volSub) / Sphere::mass;
+		float fx = (liquidDensity*glm::abs(GRAVITY.x)*volSub);
+		float fy = (liquidDensity*glm::abs(GRAVITY.y)*volSub);
+		float fz = (liquidDensity*glm::abs(GRAVITY.z)*volSub);
 
 		addForce(v3{fx, fy, fz});
-		//std::cout << fy << std::endl;
 	}
 }
 
 void PhysicsUpdate(float dt) {
-	dt /= 1;
-	currentTime += dt;
+	
 
 	//UPDATE DE LA OLA
 	struct wave {
@@ -206,11 +238,9 @@ void PhysicsUpdate(float dt) {
 		}
 	}
 
-	addForce(GRAVITY*Sphere::mass);
 	buoyancy(shortestD);
-
-	std::cout << " " << Sphere::acc.y << std::endl;
-	//CORRECCIÓN ESFERA
+	dragForce(shortestD);
+	
 	//MOVIMIENTO ESFERA 
 	Sphere::pos += dt*Sphere::vel;
 	Sphere::vel += dt*Sphere::acc;
@@ -220,7 +250,13 @@ void PhysicsUpdate(float dt) {
 	Sphere::updateSphere(Sphere::pos, Sphere::rad);
 	Sphere::drawSphere();
 
-	Sphere::acc = v3(0);
+	Sphere::acc = GRAVITY;
+
+	currentTime += dt;
+	if (currentTime >= 15) {
+		resetSphere();
+	}
+
 }
 
 void PhysicsCleanup() {
